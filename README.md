@@ -1,3 +1,3 @@
 # My Scripts
 
-This is my sample scripts page created for my training purpose. 
+This repo contains sample scripts which were created for my training purpose. 
