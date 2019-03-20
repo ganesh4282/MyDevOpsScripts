@@ -1,5 +1,5 @@
 #!/bin/bash
-#Description: This sctipt is used for providing list of instances which are in particular ASG. Assuming you have multiple profiles configured
+#Description: This sctipt is used for providing a list of instances which are in particular ASG. Assuming you have aws cli is installed and multiple profile is configured.
 if [ $# -lt 3 ]; then
 echo "--------------------------------------------------------------------------------------------------------"
 echo " Syntax Error: Expected Syntax is, <script>.sh <Profile> <ASG Name> <region>"
