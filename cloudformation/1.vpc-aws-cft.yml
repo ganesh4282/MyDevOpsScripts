@@ -1,0 +1,498 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "This CloudFormation template creates below,
+1. VPC;
+2. One Public Gateway with IGW attached;
+3. One Private Gateway with NATGateway attached;
+4. 3 Public and 3 private Subnets [Note: 4 Public and 4 Private subnets, if we run in US-East-1 only];
+5. Exports VPC and Subnets."
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "VPC"        
+        Parameters:
+          - VPCCIDR
+      -
+        Label:
+          default: "Subnets"
+        Parameters:
+          - Public1
+          - Private1
+          - Public2
+          - Private2
+          - Public3
+          - Private3
+          - Public4
+          - Private4
+    ParameterLabels:
+      VPCCIDR:
+        default: "Enter your CIDR Range for this VPC"
+Conditions:
+    FourRegions: !Equals [!Ref 'AWS::Region', us-east-1]        
+Parameters:
+    VPCCIDR:
+       Description: VPC CIDR Block
+       Type: String
+       Default: '10.10.0.0/16' 
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Public1:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.0.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Private1:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.32.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Public2:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.64.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Private2:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.96.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Public3:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.128.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Private3:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.160.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})" 
+    Public4:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.192.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    Private4:
+       Description: Subnet CIDR Block
+       Type: String
+       Default: '10.10.224.0/19'
+       AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"       
+Resources:
+    VPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        EnableDnsSupport: 'true'
+        EnableDnsHostnames: 'true'
+        CidrBlock: 
+            Ref: "VPCCIDR"
+        Tags:
+          - Key: Name
+            Value: !Join ["-",["Ref": "AWS::StackName", "vpc"]]
+    PublicSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Public1"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 0
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "public"]]
+    PrivateSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Private1"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 0
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "private"]]
+    PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Public2"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 1
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "public"]]
+    PrivateSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Private2"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 1
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "private"]]
+    PublicSubnet3:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Public3"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 2
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "public"]]
+    PrivateSubnet3:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Private3"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 2
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "private"]]
+    PublicSubnet4:
+      Type: AWS::EC2::Subnet
+      Condition: FourRegions     
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Public4"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 3
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "public"]]
+    PrivateSubnet4:
+      Type: AWS::EC2::Subnet
+      Condition: FourRegions       
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        CidrBlock: 
+          Ref: "Private4"
+        MapPublicIpOnLaunch: 'false'
+        AvailabilityZone:
+          Fn::Select:
+          - 3
+          - Fn::GetAZs: {Ref: 'AWS::Region'}
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "private"]]
+    InternetGateway:
+      Type: "AWS::EC2::InternetGateway"
+      Properties:
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "igw"]]
+    GatewayToInternet:
+      Type: "AWS::EC2::VPCGatewayAttachment"
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        InternetGatewayId:
+          Ref: "InternetGateway"
+    PublicRouteTable:
+      Type: "AWS::EC2::RouteTable"
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "public-rt"]]
+    PublicRoute:
+      Type: "AWS::EC2::Route"
+      DependsOn: "GatewayToInternet"
+      Properties:
+        RouteTableId:
+          Ref: "PublicRouteTable"
+        DestinationCidrBlock: "0.0.0.0/0"
+        GatewayId:
+          Ref: "InternetGateway"
+    PublicSubnetRouteTableAssociation1:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet1"
+        RouteTableId:
+          Ref: "PublicRouteTable"
+    PublicSubnetRouteTableAssociation2:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet2"
+        RouteTableId:
+          Ref: "PublicRouteTable"
+    PublicSubnetRouteTableAssociation3:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet3"
+        RouteTableId:
+          Ref: "PublicRouteTable"
+    PublicSubnetRouteTableAssociation4:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Condition: FourRegions      
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet4"
+        RouteTableId:
+          Ref: "PublicRouteTable"
+    PrivateRouteTable:
+      Type: "AWS::EC2::RouteTable"
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "private-rt"]]
+    PrivateRoute:
+      Type: "AWS::EC2::Route"
+      Properties:
+        RouteTableId:
+          Ref: "PrivateRouteTable"
+        DestinationCidrBlock: "0.0.0.0/0"
+        NatGatewayId:
+          Ref: "NATGateway"
+    PrivateSubnetRouteTableAssociation1:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet1"
+        RouteTableId:
+          Ref: "PrivateRouteTable"   
+    PrivateSubnetRouteTableAssociation2:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet2"
+        RouteTableId:
+          Ref: "PrivateRouteTable"           
+    PrivateSubnetRouteTableAssociation3:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet3"
+        RouteTableId:
+          Ref: "PrivateRouteTable"    
+    PrivateSubnetRouteTableAssociation4:
+      Type: "AWS::EC2::SubnetRouteTableAssociation"
+      Condition: FourRegions      
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet4"
+        RouteTableId:
+          Ref: "PrivateRouteTable"  
+    NetworkAcl:
+      Type: "AWS::EC2::NetworkAcl"
+      Properties:
+        VpcId:
+          Ref: "VPC"
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "nacl"]]
+    InboundNetworkAclEntry:
+      Type: "AWS::EC2::NetworkAclEntry"
+      Properties:
+        NetworkAclId:
+          Ref: "NetworkAcl"
+        RuleNumber: "100"
+        Protocol: "-1"
+        RuleAction: "allow"
+        Egress: "false"
+        CidrBlock: "0.0.0.0/0"
+        PortRange:
+          From: "0"
+          To: "65535"
+    OutboundNetworkAclEntry:
+      Type: "AWS::EC2::NetworkAclEntry"
+      Properties:
+        NetworkAclId:
+          Ref: "NetworkAcl"
+        RuleNumber: "100"
+        Protocol: "-1"
+        RuleAction: "allow"
+        Egress: "true"
+        CidrBlock: "0.0.0.0/0"
+        PortRange:
+          From: "0"
+          To: "65535"
+    SubnetNetworkAclAssociation1:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet1"
+        NetworkAclId:
+          Ref: "NetworkAcl"
+    SubnetNetworkAclAssociation2:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet2"
+        NetworkAclId:
+          Ref: "NetworkAcl"
+    SubnetNetworkAclAssociation3:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet3"
+        NetworkAclId:
+          Ref: "NetworkAcl"
+    SubnetNetworkAclAssociation4:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Condition: FourRegions       
+      Properties:
+        SubnetId:
+          Ref: "PublicSubnet4"
+        NetworkAclId:
+          Ref: "NetworkAcl"
+    SubnetNetworkAclAssociation5:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet1"
+        NetworkAclId:
+          Ref: "NetworkAcl"
+    SubnetNetworkAclAssociation6:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet2"
+        NetworkAclId:
+          Ref: "NetworkAcl"          
+    SubnetNetworkAclAssociation7:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet3"
+        NetworkAclId:
+          Ref: "NetworkAcl"   
+    SubnetNetworkAclAssociation8:
+      Type: "AWS::EC2::SubnetNetworkAclAssociation"
+      Condition: FourRegions       
+      Properties:
+        SubnetId:
+          Ref: "PrivateSubnet4"
+        NetworkAclId:
+          Ref: "NetworkAcl"                    
+    NATGateway:
+      Type: "AWS::EC2::NatGateway"
+      Properties:
+        AllocationId:
+          Fn::GetAtt:
+            - "ElasticIP"
+            - "AllocationId"
+        SubnetId:
+          Ref: "PublicSubnet1"
+        Tags:
+          -
+            Key: "Name"
+            Value: !Join ["-",["Ref": "AWS::StackName", "nat"]]
+    ElasticIP:
+      Type: "AWS::EC2::EIP"
+      Properties:
+        Domain: "vpc"
+    S3Endpoint:
+      Type: AWS::EC2::VPCEndpoint
+      Properties:
+        RouteTableIds:
+          - !Ref PrivateRouteTable
+          - !Ref PublicRouteTable
+        ServiceName: !Join 
+          - ''
+          - - com.amazonaws.
+            - !Ref 'AWS::Region'
+            - .s3
+        VpcId:
+          Ref: "VPC"
+Outputs:
+    StackVPC:
+      Description: The ID of the VPC
+      Value: !Ref VPC
+      Export:
+        Name: !Sub "${AWS::StackName}-VPCID"          
+    StackPriSubnet1:
+      Description: Frist Private Subnet
+      Value: !Ref PrivateSubnet1
+      Export:
+        Name: !Sub "${AWS::StackName}-PriSubnet1"
+    StackPriSubnet2:
+      Description: Second Private Subnet
+      Value: !Ref PrivateSubnet2
+      Export:
+        Name: !Sub "${AWS::StackName}-PriSubnet2"
+    StackPriSubnet3:
+      Description: Third Private Subnet
+      Value: !Ref PrivateSubnet3
+      Export:
+        Name: !Sub "${AWS::StackName}-PriSubnet3"
+    StackPriSubnet4:
+      Condition: FourRegions      
+      Description: Third Private Subnet
+      Value: !Ref PrivateSubnet4
+      Export:
+        Name: !Sub "${AWS::StackName}-PriSubnet4"        
+    StackPubSubnet1:
+      Description: Frist Public Subnet
+      Value: !Ref PublicSubnet1
+      Export:
+        Name: !Sub "${AWS::StackName}-PubSubnet1"
+    StackPubSubnet2:
+      Description: Second Public Subnet
+      Value: !Ref PublicSubnet2
+      Export:
+        Name: !Sub "${AWS::StackName}-PubSubnet2"     
+    StackPubSubnet3:
+      Description: Third Public Subnet
+      Value: !Ref PublicSubnet3
+      Export:
+        Name: !Sub "${AWS::StackName}-PubSubnet3"   
+    StackPubSubnet4:
+      Condition: FourRegions  
+      Description: Third Public Subnet
+      Value: !Ref PublicSubnet4
+      Export:
+        Name: !Sub "${AWS::StackName}-PubSubnet4" 
