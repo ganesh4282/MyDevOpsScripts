@@ -1,0 +1,172 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "This CloudFormation template creates an Instance with Public IP using the vpc-aws-cft stack VPC and Subnet exports"
+Mappings:
+    Region2AMIMap:
+      us-east-1:
+        ubuntu: "ami-0a313d6098716f372"
+      eu-west-1:
+        ubuntu: "ami-xxxxxxxx"       
+      ap-southeast-2:
+        ubuntu: "ami-xxxxxxxx"
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Instance Parameters"        
+        Parameters:
+          - KeyPair
+          - TerminationPolicy
+      -
+        Label: 
+          default: "Other Parameters"
+        Parameters:
+          - Environment
+          - NetworkStackName
+Parameters:
+    NetworkStackName:
+        Description: Name of an active CloudFormation stack that contains the networking resources.
+        Type: String
+        AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+        Default: NetworkStack
+    KeyPair:
+        Description: EC2 KeyPair
+        Type: AWS::EC2::KeyPair::KeyName
+        ConstraintDescription: Existing EC2 KeyPair.
+    TerminationPolicy:
+       Description: Choose EC2 Termination Policy
+       Type: String
+       Default: False
+       AllowedValues: 
+        - True
+        - False
+    Environment:
+       Description: To set the route53 Record Set
+       Type: String
+       Default: dev        
+Resources:
+    WebEC2SecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupName: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        GroupDescription: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        SecurityGroupIngress:
+         - IpProtocol: tcp
+           FromPort: '22'
+           ToPort: '22'
+           CidrIp: 0.0.0.0/0 
+         - IpProtocol: tcp
+           FromPort: '443'
+           ToPort: '443'
+           CidrIp: 0.0.0.0/0 
+         - IpProtocol: tcp
+           FromPort: '80'
+           ToPort: '80'
+           CidrIp: 0.0.0.0/0             
+        SecurityGroupEgress:
+         - IpProtocol: '-1'
+           CidrIp: 0.0.0.0/0
+        VpcId:
+          Fn::ImportValue:
+            Fn::Sub: "${NetworkStackName}-VPCID"
+        Tags:
+         - Key: "Name"
+           Value: !Join ["-",["Ref": "AWS::StackName", "web"]]
+    WebRole: 
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+        Path: "/"
+        Policies:
+         -        
+            PolicyName: "EBSVolumePolicy"
+            PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - 
+                    Effect: "Allow"
+                    Action: 
+                     - "ec2:DescribeInstances"
+                     - "ec2:DescribeVolumes"                     
+                     - "ec2:ModifyVolumeAttribute"
+                     - "ec2:CreateTags"                     
+                     - "ec2:AttachVolume"
+                     - "ec2:CreateVolume"
+                    Resource: "*"                     
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+    WebInstanceProfile:
+      Type: "AWS::IAM::InstanceProfile"
+      Properties:
+        Roles: 
+          - Ref: WebRole
+    WebEC2Instance:
+      Type: "AWS::EC2::Instance"
+      Properties: 
+        ImageId: !FindInMap
+          - Region2AMIMap
+          - !Ref 'AWS::Region'
+          - ubuntu
+        InstanceType: t2.micro
+        KeyName:
+           Ref: KeyPair
+        DisableApiTermination:
+           Ref: TerminationPolicy           
+        IamInstanceProfile: 
+           Ref: WebInstanceProfile
+        BlockDeviceMappings:
+          - DeviceName: /dev/sdb
+            Ebs:
+               VolumeSize: '10'
+               VolumeType: gp2          
+        NetworkInterfaces: 
+          - AssociatePublicIpAddress: "true"
+            DeviceIndex: '0'
+            SubnetId:
+              Fn::ImportValue:
+                Fn::Sub: "${NetworkStackName}-PubSubnet1"
+            GroupSet:
+             - Ref: WebEC2SecurityGroup
+        Tags:
+         - Key: "Name"
+           Value: !Join ["-",["Ref": "AWS::StackName", "kamailio"]]
+         - Key: "Environment"
+           Value: !Join ["-",[!Ref 'Environment']]              
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash -ex
+            sudo apt-get -y update
+            sudo apt install python-pip -y
+            sudo pip install --upgrade pip
+            sudo pip install awscli
+            sleep 90
+            sudo snap install amazon-ssm-agent --classic
+            sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+            sudo systemctl stop snap.amazon-ssm-agent.amazon-ssm-agent.service
+            sudo snap start amazon-ssm-agent
+            sudo mkdir /mnt/temp
+            echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk /dev/xvdb
+            sleep 60
+            sudo mkfs -t ext4 /dev/xvdb1
+            echo "/dev/xvdb1 /mnt/temp ext4 defaults 0 2" | sudo tee --append  /etc/fstab
+Outputs:
+    StackInstance:
+      Description: Web Instance ID
+      Value: !Ref WebEC2Instance
+      Export:
+        Name: !Sub "${AWS::StackName}-InstanceID"
+    StackProfile:
+      Description: Web Instance Profile
+      Value: !Ref WebInstanceProfile
+      Export:
+        Name: !Sub "${AWS::StackName}-WebInsProfile" 
