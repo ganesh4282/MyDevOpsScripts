@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "This CloudFormation template creates a Web Instance with an application load balancer. It uses the vpc-aws-cft stack VPC and Subnet exports"
+Description: "This CloudFormation template creates a Web Instance and Classic load balancer. It uses the vpc-aws-cft stack VPC and Subnet exports"
 Mappings:
     Region2AMIMap:
       us-east-1:
@@ -49,8 +49,8 @@ Resources:
     WebEC2SecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupName: !Join ["-",["Ref": "AWS::StackName", "web"]]
-        GroupDescription: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        GroupName: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]
+        GroupDescription: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]
         SecurityGroupIngress:
          - IpProtocol: tcp
            FromPort: '22'
@@ -72,12 +72,12 @@ Resources:
             Fn::Sub: "${NetworkStackName}-VPCID"
         Tags:
          - Key: "Name"
-           Value: !Join ["-",["Ref": "AWS::StackName", "web"]]
+           Value: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]
     WebALBSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupName: !Join ["-",["Ref": "AWS::StackName", "web-elb"]]
-        GroupDescription: !Join ["-",["Ref": "AWS::StackName", "web-elb"]]
+        GroupName: !Join ["-",["Ref": "AWS::StackName", "web-alb"]]
+        GroupDescription: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web-alb"]]
         SecurityGroupIngress:
          - IpProtocol: tcp
            FromPort: '80'
@@ -91,11 +91,11 @@ Resources:
             Fn::Sub: "${NetworkStackName}-VPCID"
         Tags:
          - Key: "Name"
-           Value: !Join ["-",["Ref": "AWS::StackName", "web-elb"]]           
+           Value: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web-elb"]]           
     WebRole: 
       Type: AWS::IAM::Role
       Properties:
-        RoleName: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        RoleName: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]
         AssumeRolePolicyDocument:
           Version: '2012-10-17'
           Statement:
@@ -128,54 +128,11 @@ Resources:
       Type: "AWS::IAM::InstanceProfile"
       Properties:
         Roles: 
-          - Ref: WebRole
-    WebEC2Instance:
-      Type: "AWS::EC2::Instance"
-      Properties: 
-        ImageId: !FindInMap
-          - Region2AMIMap
-          - !Ref 'AWS::Region'
-          - ubuntu
-        InstanceType: t2.micro
-        KeyName:
-           Ref: KeyPair
-        DisableApiTermination:
-           Ref: TerminationPolicy           
-        IamInstanceProfile: 
-           Ref: WebInstanceProfile       
-        NetworkInterfaces: 
-          - AssociatePublicIpAddress: "true"
-            DeviceIndex: '0'
-            SubnetId:
-              Fn::ImportValue:
-                Fn::Sub: "${NetworkStackName}-PubSubnet1"
-            GroupSet:
-             - Ref: WebEC2SecurityGroup
-        Tags:
-         - Key: "Name"
-           Value: !Join ["-",["Ref": "AWS::StackName", "web"]]
-         - Key: "Environment"
-           Value: !Join ["-",[!Ref 'Environment']]              
-        UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash -ex
-            sudo apt-get -y update
-            sudo apt install python-pip -y
-            sudo pip install --upgrade pip
-            sudo pip install awscli
-            sleep 90
-            sudo snap install amazon-ssm-agent --classic
-            sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
-            sudo systemctl stop snap.amazon-ssm-agent.amazon-ssm-agent.service
-            sudo snap start amazon-ssm-agent
-            sudo apt install apache2 -y
-            sudo ufw allow 'Apache'
-            sudo systemctl start apache2
-            echo "Health Check " | sudo tee /var/www/html/healthcheck.html            
+          - Ref: WebRole    
     WebAppLoadBalancer:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties:
-        Name: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        Name: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]
         Subnets: 
           - {'Fn::ImportValue': !Sub '${NetworkStackName}-PubSubnet1'}
           - {'Fn::ImportValue': !Sub '${NetworkStackName}-PubSubnet2'}
@@ -184,7 +141,7 @@ Resources:
           - Ref: WebALBSecurityGroup
         Tags:
          - Key: "Name"
-           Value: !Join ["-",["Ref": "AWS::StackName", "web"]]
+           Value: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]
     WebLoadBalancerListener:
         Type: AWS::ElasticLoadBalancingV2::Listener
         Properties:
@@ -197,14 +154,10 @@ Resources:
     WebTargetGroup:
         Type: AWS::ElasticLoadBalancingV2::TargetGroup
         Properties:
-            Name: !Join ["-",["Ref": "AWS::StackName", "web"]]
+            Name: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]
             TargetGroupAttributes:
               - Key: deregistration_delay.timeout_seconds
-                Value: '300' 
-            Targets:
-            - Id:
-                !Ref WebEC2Instance
-              Port: '80'
+                Value: '300'
             VpcId:
               Fn::ImportValue:
                 Fn::Sub: "${NetworkStackName}-VPCID"
@@ -221,20 +174,74 @@ Resources:
             HealthCheckPort: '80'
             Tags:
              - Key: "Name"
-               Value: !Join ["-",["Ref": "AWS::StackName", "web"]]           
+               Value: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]   
+    WebLaunchConfig:
+        Type: AWS::AutoScaling::LaunchConfiguration
+        Properties:
+          LaunchConfigurationName: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web-v1"]]
+          KeyName: 
+            Ref: KeyPair
+          ImageId: !FindInMap
+            - Region2AMIMap
+            - !Ref 'AWS::Region'
+            - ubuntu
+          InstanceType: t2.micro
+          AssociatePublicIpAddress: 'true'
+          SecurityGroups:
+           - Ref: WebEC2SecurityGroup
+          IamInstanceProfile: 
+             Ref: WebInstanceProfile            
+          InstanceMonitoring: 'false' 
+          UserData:
+            Fn::Base64: !Sub |
+             #!/bin/bash -ex
+             sudo apt-get -y update
+             sudo apt install python-pip -y
+             sudo pip install --upgrade pip
+             sudo pip install awscli
+             instanceid=`curl http://169.254.169.254/latest/meta-data/instance-id` 
+             sleep 60
+             sudo snap install amazon-ssm-agent --classic
+             sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+             sudo systemctl stop snap.amazon-ssm-agent.amazon-ssm-agent.service
+             sudo snap start amazon-ssm-agent
+             sudo apt install apache2 -y
+             sudo ufw allow 'Apache'
+             sudo systemctl start apache2
+             echo "Health Check from $instanceid" | sudo tee /var/www/html/healthcheck.html          
+    WebAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup    
+        Properties:
+          AutoScalingGroupName: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]        
+          VPCZoneIdentifier:  
+              - {'Fn::ImportValue': !Sub '${NetworkStackName}-PriSubnet1'}
+              - {'Fn::ImportValue': !Sub '${NetworkStackName}-PriSubnet2'}
+              - {'Fn::ImportValue': !Sub '${NetworkStackName}-PriSubnet3'}
+          HealthCheckType: EC2
+          HealthCheckGracePeriod: '300'
+          TargetGroupARNs:
+           - Ref: WebTargetGroup
+          Cooldown: '300'
+          LaunchConfigurationName: 
+            Ref: WebLaunchConfig         
+          MaxSize: '2'
+          MinSize: '1'
+          DesiredCapacity: '2'
+          Tags:
+           - Key: "Name"
+             Value: !Join ["-",["Ref": "AWS::StackName", !Ref 'Environment', "web"]]       
+             PropagateAtLaunch: 'true' 
+           - Key: "Environment"
+             Value: !Join ["-",[!Ref 'Environment']]                   
+             PropagateAtLaunch: 'true'           
 Outputs:
-    StackInstance:
-      Description: Web Instance ID
-      Value: !Ref WebEC2Instance
-      Export:
-        Name: !Sub "${AWS::StackName}-InstanceID"
-    StackELB:
+    StackALB:
       Description: Load Balancer Name
       Value: !Ref WebAppLoadBalancer
       Export:
         Name: !Sub "${AWS::StackName}-alb"          
-    StackELBDNS:
-      Description: ALB DNS Endpoint
+    StackALBDNS:
+      Description: ELB DNS Endpoint
       Value: !GetAtt [WebAppLoadBalancer, DNSName]
       Export:
-        Name: !Sub "${AWS::StackName}-albdns"
+        Name: !Sub "${AWS::StackName}-albdns" 
