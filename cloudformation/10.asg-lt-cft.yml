@@ -1,0 +1,184 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "This CloudFormation template creates a simple instance thru ASG using launch template. It uses the network input from vpc-aws-cft cloudformation stack"
+Mappings:
+    Region2AMIMap:
+      us-east-1:
+        ubuntu: "ami-xxxxxxxx"
+      eu-west-1:
+        ubuntu: "ami-xxxxxxxx"       
+      ap-southeast-2:
+        ubuntu: "ami-xxxxxxxx"
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "Instance Parameters"        
+        Parameters:
+          - KeyPair
+          - ImageId
+      -
+        Label: 
+          default: "Other Parameters"
+        Parameters:
+          - Environment
+          - NetworkStackName  
+          - SnsEmail          
+Parameters:
+    NetworkStackName:
+        Description: Name of an active CloudFormation stack that contains the networking resources.
+        Type: String
+        AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+        Default: NetworkStack
+    KeyPair:
+        Description: EC2 KeyPair
+        Type: AWS::EC2::KeyPair::KeyName
+        ConstraintDescription: Existing EC2 KeyPair.
+    Environment:
+        Description: To set the route53 Record Set
+        Type: String
+        Default: dev 
+    SnsEmail:
+        Description: Email ID for Alerts
+        Type: String       
+    ImageId:
+        Description: AMI ID
+        Default: ami-036ede09922dadc9b      
+Resources:
+    WebASGSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupName: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        GroupDescription: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        SecurityGroupIngress:
+         - IpProtocol: tcp
+           FromPort: '22'
+           ToPort: '22'
+           CidrIp: 0.0.0.0/0 
+         - IpProtocol: tcp
+           FromPort: '443'
+           ToPort: '443'
+           CidrIp: 0.0.0.0/0 
+         - IpProtocol: tcp
+           FromPort: '80'
+           ToPort: '80'
+           CidrIp: 0.0.0.0/0             
+        SecurityGroupEgress:
+         - IpProtocol: '-1'
+           CidrIp: 0.0.0.0/0
+        VpcId:
+          Fn::ImportValue:
+            Fn::Sub: "${NetworkStackName}-VPCID"
+        Tags:
+         - Key: "Name"
+           Value: !Join ["-",["Ref": "AWS::StackName", "web"]]
+    WebASGRole: 
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: !Join ["-",["Ref": "AWS::StackName", "web"]]
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+        Path: "/"
+        Policies:
+         -        
+            PolicyName: "EBSVolumePolicy"
+            PolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                  - 
+                    Effect: "Allow"
+                    Action: 
+                     - "ec2:DescribeInstances"
+                     - "ec2:DescribeVolumes"                     
+                     - "ec2:ModifyVolumeAttribute"
+                     - "ec2:CreateTags"                     
+                     - "ec2:AttachVolume"
+                     - "ec2:CreateVolume"
+                    Resource: "*"                     
+        ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+    WebASGProfile:
+      Type: "AWS::IAM::InstanceProfile"
+      Properties:
+        Roles: 
+          - Ref: WebASGRole
+    WebLaunchTemplate:
+       Type: AWS::EC2::LaunchTemplate
+       Properties:
+         LaunchTemplateName: !Join ["-",["Ref": "AWS::StackName", "web"]]
+         LaunchTemplateData:
+           SecurityGroupIds:
+           - !Ref 'WebASGSecurityGroup'
+           TagSpecifications:
+           - ResourceType: instance
+             Tags:
+             - Key: Name
+               Value: !Join ["-",["Ref": "AWS::StackName", "web"]]
+           - ResourceType: volume
+             Tags:
+             - Key: Name
+               Value: !Join ["-",["Ref": "AWS::StackName", "web"]]  
+           InstanceInitiatedShutdownBehavior: terminate
+           KeyName: !Ref 'KeyPair'
+           ImageId: !Ref 'Ec2ImageId'
+           InstanceType: t2.micro
+           IamInstanceProfile: 
+              Name: !Ref 'WebASGProfile'
+           UserData:
+              Fn::Base64: !Sub |
+               #!/bin/bash -ex
+               sudo apt-get -y update
+               sudo apt install python-pip -y
+               sudo pip install --upgrade pip
+               sudo pip install awscli
+               instanceid=`curl http://169.254.169.254/latest/meta-data/instance-id` 
+               sleep 60
+               sudo snap install amazon-ssm-agent --classic
+               sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+               sudo systemctl stop snap.amazon-ssm-agent.amazon-ssm-agent.service
+               sudo snap start amazon-ssm-agent
+               sudo apt install apache2 -y
+               sudo ufw allow 'Apache'
+               sudo systemctl start apache2 
+    WebAutoScalingGroup:
+      Type: AWS::AutoScaling::AutoScalingGroup
+      Properties:
+        AutoScalingGroupName: !Join ["-",["Ref": "AWS::StackName", "web"]]        
+        VPCZoneIdentifier:  
+        - {'Fn::ImportValue': !Sub '${NetworkStackName}-PubSubnet1'}
+        - {'Fn::ImportValue': !Sub '${NetworkStackName}-PubSubnet2'}
+        - {'Fn::ImportValue': !Sub '${NetworkStackName}-PubSubnet3'}
+        LaunchTemplate:
+           LaunchTemplateId: !Ref 'WebLaunchTemplate'
+           Version: !GetAtt 'WebLaunchTemplate.DefaultVersionNumber'
+        MaxSize: '1'
+        MinSize: '1'
+        DesiredCapacity: '1'
+        NotificationConfigurations:
+         - TopicARN: !Ref 'MyTopic'
+           NotificationTypes: ['autoscaling:EC2_INSTANCE_LAUNCH', 'autoscaling:EC2_INSTANCE_LAUNCH_ERROR', 'autoscaling:EC2_INSTANCE_TERMINATE', 'autoscaling:EC2_INSTANCE_TERMINATE_ERROR']                
+        Tags:
+         - Key: "Name"
+           Value: !Join ["-",["Ref": "AWS::StackName", "web"]]       
+           PropagateAtLaunch: 'true' 
+         - Key: "Environment"
+           Value: !Join ["-",[!Ref 'Environment']]                   
+           PropagateAtLaunch: 'true'          
+    MyTopic:
+        Type: AWS::SNS::Topic
+        Properties: 
+          TopicName: !Join ["-",["Ref": "AWS::StackName", !Ref Environment, "alerts"]]
+    MySubscription:
+        Type: AWS::SNS::Subscription
+        Properties:
+          Endpoint: !Ref 'SnsEmail'
+          Protocol: email
+          TopicArn: !Ref 'MyTopic'

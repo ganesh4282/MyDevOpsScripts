@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "This CloudFormation template creates a Web Instances thru ASG and attach the instances to Classic load balancer. It uses the vpc-aws-cft stack VPC and Subnet exports"
+Description: "This CloudFormation template creates a Web Instance thru ASG and attach the instances to Classic load balancer. Update Route53 record set with Classic Load balancer dns. It uses the vpc-aws-cft stack VPC and Subnet exports"
 Mappings:
     Region2AMIMap:
       us-east-1:
@@ -24,6 +24,7 @@ Metadata:
         Parameters:
           - Environment
           - NetworkStackName
+          - HostedZone
 Parameters:
     NetworkStackName:
         Description: Name of an active CloudFormation stack that contains the networking resources.
@@ -44,7 +45,11 @@ Parameters:
     Environment:
        Description: To set the route53 Record Set
        Type: String
-       Default: dev        
+       Default: dev
+    HostedZone:
+       Description: Route53 Hosted Zone
+       Type: String
+       Default: mylabexample.net.       
 Resources:
     WebEC2SecurityGroup:
       Type: AWS::EC2::SecurityGroup
@@ -171,13 +176,7 @@ Resources:
           SecurityGroups:
            - Ref: WebEC2SecurityGroup
           IamInstanceProfile: 
-             Ref: WebInstanceProfile
-          BlockDeviceMappings:
-           - DeviceName: /dev/sdb
-             Ebs:
-               VolumeSize: '10'
-               VolumeType: gp2
-               DeleteOnTermination: true               
+             Ref: WebInstanceProfile         
           InstanceMonitoring: 'false' 
           UserData:
             Fn::Base64: !Sub |
@@ -195,7 +194,8 @@ Resources:
              sudo apt install apache2 -y
              sudo ufw allow 'Apache'
              sudo systemctl start apache2
-             echo "Health Check from $instanceid" | sudo tee /var/www/html/healthcheck.html          
+             echo "Health Check from $instanceid" | sudo tee /var/www/html/healthcheck.html 
+             echo "It Works" | sudo tee /var/www/html/healthcheck.html                
     WebAutoScalingGroup:
         Type: AWS::AutoScaling::AutoScalingGroup    
         Properties:
@@ -220,7 +220,17 @@ Resources:
              PropagateAtLaunch: 'true' 
            - Key: "Environment"
              Value: !Join ["-",[!Ref 'Environment']]                   
-             PropagateAtLaunch: 'true'           
+             PropagateAtLaunch: 'true' 
+    DnsRecord:
+      Type: AWS::Route53::RecordSet
+      Properties:
+        HostedZoneName: !Ref HostedZone
+        RecordSets:
+          - Name: !Join ['', [!Ref "AWS::StackName", "-web.", !Ref 'HostedZone']]
+            Type: A 
+            AliasTarget:
+              HostedZoneId: !GetAtt WebClassicLoadBalancer.CanonicalHostedZoneNameID
+              DNSName: !GetAtt WebClassicLoadBalancer.DNSName              
 Outputs:
     StackELB:
       Description: Load Balancer Name
@@ -231,4 +241,9 @@ Outputs:
       Description: ELB DNS Endpoint
       Value: !GetAtt [WebClassicLoadBalancer, DNSName]
       Export:
-        Name: !Sub "${AWS::StackName}-elbdns" 
+        Name: !Sub "${AWS::StackName}-elbdns"  
+    StackRecordSet:
+      Description: Web URL
+      Value: !Join ['', [http://, !Ref DnsRecord]]
+      Export:
+        Name: !Sub "${AWS::StackName}-web-url" 

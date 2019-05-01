@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "This CloudFormation template creates a Web Instance and Classic load balancer. It uses the vpc-aws-cft stack VPC and Subnet exports"
+Description: "This CloudFormation template creates a Web Instances thru ASG and attach the instances to Application load balancer. It uses the vpc-aws-cft stack VPC and Subnet exports"
 Mappings:
     Region2AMIMap:
       us-east-1:

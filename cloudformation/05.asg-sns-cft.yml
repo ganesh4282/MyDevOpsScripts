@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: "This CloudFormation template creates a simple instance thru ASG and uses the network input from vpc-aws-cft cloudformation stack"
+Description: "This CloudFormation template creates a web instance thru ASG with SNS. It uses the network input from vpc-aws-cft cloudformation stack"
 Mappings:
     Region2AMIMap:
       us-east-1:
@@ -22,7 +22,8 @@ Metadata:
           default: "Other Parameters"
         Parameters:
           - Environment
-          - NetworkStackName         
+          - NetworkStackName  
+          - SnsEmail          
 Parameters:
     NetworkStackName:
         Description: Name of an active CloudFormation stack that contains the networking resources.
@@ -36,7 +37,10 @@ Parameters:
     Environment:
        Description: To set the route53 Record Set
        Type: String
-       Default: dev   
+       Default: dev 
+    SnsEmail:
+       Description: Email ID for Alerts
+       Type: String       
 Resources:
     WebASGSecurityGroup:
       Type: AWS::EC2::SecurityGroup
@@ -132,17 +136,15 @@ Resources:
              sudo apt install python-pip -y
              sudo pip install --upgrade pip
              sudo pip install awscli
-             sleep 90
+             instanceid=`curl http://169.254.169.254/latest/meta-data/instance-id` 
+             sleep 60
              sudo snap install amazon-ssm-agent --classic
              sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
              sudo systemctl stop snap.amazon-ssm-agent.amazon-ssm-agent.service
              sudo snap start amazon-ssm-agent
-             sudo mkdir /mnt/temp
-             echo -e "o\nn\np\n1\n\n\nw" | sudo fdisk /dev/xvdb
-             sleep 60
-             sudo mkfs -t ext4 /dev/xvdb1
-             echo "/dev/xvdb1 /mnt/temp ext4 defaults 0 2" | sudo tee --append  /etc/fstab
-             sudo mount -a
+             sudo apt install apache2 -y
+             sudo ufw allow 'Apache'
+             sudo systemctl start apache2
     WebAutoScalingGroup:
         Type: AWS::AutoScaling::AutoScalingGroup    
         Properties:
@@ -159,6 +161,9 @@ Resources:
           MaxSize: '1'
           MinSize: '1'
           DesiredCapacity: '1'
+          NotificationConfigurations:
+            - TopicARN: !Ref 'MyTopic'
+              NotificationTypes: ['autoscaling:EC2_INSTANCE_LAUNCH', 'autoscaling:EC2_INSTANCE_LAUNCH_ERROR', 'autoscaling:EC2_INSTANCE_TERMINATE', 'autoscaling:EC2_INSTANCE_TERMINATE_ERROR']                
           Tags:
            - Key: "Name"
              Value: !Join ["-",["Ref": "AWS::StackName", "web"]]       
@@ -166,3 +171,13 @@ Resources:
            - Key: "Environment"
              Value: !Join ["-",[!Ref 'Environment']]                   
              PropagateAtLaunch: 'true'
+    MyTopic:
+        Type: AWS::SNS::Topic
+        Properties: 
+          TopicName: !Join ["-",["Ref": "AWS::StackName", !Ref Environment, "alerts"]]
+    MySubscription:
+        Type: AWS::SNS::Subscription
+        Properties:
+          Endpoint: !Ref 'SnsEmail'
+          Protocol: email
+          TopicArn: !Ref 'MyTopic'  

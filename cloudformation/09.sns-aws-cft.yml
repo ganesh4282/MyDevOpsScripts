@@ -1,0 +1,18 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "This CloudFormation template helps you to create a SNS Topic and Subscription"
+Parameters:
+    SnsEmail:
+       Description: Email ID for Alerts
+       Type: String
+Resources:
+    MyTopic:
+      Type: AWS::SNS::Topic
+      Properties: 
+        TopicName: MyTopic
+    MySubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: !Ref 'SnsEmail'
+        Protocol: email
+        TopicArn: !Ref 'MyTopic'

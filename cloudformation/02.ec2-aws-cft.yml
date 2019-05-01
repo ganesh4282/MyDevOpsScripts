@@ -139,7 +139,7 @@ Resources:
              - Ref: WebEC2SecurityGroup
         Tags:
          - Key: "Name"
-           Value: !Join ["-",["Ref": "AWS::StackName", "kamailio"]]
+           Value: !Join ["-",["Ref": "AWS::StackName", "web"]]
          - Key: "Environment"
            Value: !Join ["-",[!Ref 'Environment']]              
         UserData:
