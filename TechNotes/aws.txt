@@ -1,1 +1,29 @@
-AWS Managed Microsoft AD
+AWS Managed Microsoft AD :
+
+When we enable manged Microsoft AD, it launches an HA Pair of Windows Server 2012 Domain controller (DCs). 
+If we have Microsoft AD runs in On-Prem, we can connect using VPN and make a one or two way trust relationship.
+
+Supports,
+    1. Group Policy
+    2. Single Sign-On
+    3. Supports MFA using Radius
+
+AD Connector :
+
+Self Managed                                                          ---  Amazon WorkSpace
+Microsoft        ----- VPN ------ AWS Account (AD Connector)    ---- |---  Amazon EC2
+AD ( On-Prem)                                                         ---  Management Console
+
+IAM - Saml 2.0 Identity Federation :
+
+
+Microsoft AD  ---
+                 |
+                 ADFS
+                 | Idp sends client SAMl Assertion
+User  - App -----
+        |
+        |
+        | ----  AWS STS (provides temp secuity credential)
+        |        ( App calls sts:AssumeRoleWith SAML )
+       DynamoDB
