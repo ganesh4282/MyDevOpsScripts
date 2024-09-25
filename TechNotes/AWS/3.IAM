@@ -1,0 +1,68 @@
+*************************
+AWS Managed Microsoft AD :
+*************************
+When we enable manged Microsoft AD, it launches an HA Pair of Windows Server 2012 Domain controller (DCs). 
+If we have Microsoft AD runs in On-Prem, we can connect using VPN and make a one or two way trust relationship.
+
+Supports,
+    1. Group Policy
+    2. Single Sign-On
+    3. Supports MFA using Radius
+
+
+*************
+AD Connector :
+*************
+Self Managed                                                          ---  Amazon WorkSpace
+Microsoft        ----- VPN ------ AWS Account (AD Connector)    ---- |---  Amazon EC2
+AD ( On-Prem)                                                         ---  Management Console
+
+
+***********************************
+IAM - Saml 2.0 Identity Federation :
+***********************************
+Microsoft AD  ---
+                 | |
+                 ADFS ( is an IdP )
+                 | |  Idp sends client SAMl Assertion
+User  - App ----- 
+        |  |
+        |  -------- DynamoDB
+STS   ---
+(provides temp secuity credential) 
+(App calls sts:AssumeRoleWith SAML)
+
+
+******************************
+IAM - Web Identity Federation :
+******************************
+
+[ Social IdPs]
+                                     STS
+Amazon                               |
+                                     | App Calls sts:AssumeRoleWithWebIdentity 
+Google       <------> Mobile App ----- 
+                              |      
+Facebook                      ------  DynamoDB
+
+Aws recommand uto use Cognito for web identity Federation in most cases
+
+
+**************
+Amazon Cognito :
+**************
+                        Amazon Google Facebook
+                             Social IdPs
+                               |
+                               |
+                          Cognito User Pool 
+                               |
+                JWT Token      |
+Mobile App  --------------------
+       |    
+       ---------------------------- Cognito Identity Pool --- STS
+       |     Token get exchanged 
+       |            with 
+       |     temp secuity credential
+       |
+       --------- DynamoDB

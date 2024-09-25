@@ -1,0 +1,51 @@
+**********************
+Global Infrastructure :
+**********************
+
+Region : 
+    Physical Location 
+    26+ regions across the world
+    Every region is connected via a high bandwidth fully redundant network
+AZ     : 
+    One or more Data Centers
+    Each region contains two or more AZs
+Local Zone:
+    New type of infrastructure deployment that places AWS compute, storage, database, and other select AWS services in 
+    large metropolitan areas closer to end users enabling access to single-digit millisecond latency 
+    with the use of AWS Direct Connect and the ability to meet data residency requirements. 
+
+    Local Zones are also connected to their parent Region via AWS’s redundant and high bandwidth private network, 
+    so applications running in Local Zones also have fast, secure, and seamless access to a complete list of services in the parent Region. 
+Outposts:
+    Pool of AWS compute and storage capacity deployed at a customer site.
+    Fully managed solutions delivering AWS infrastructure and services to virtually any on-premises.
+    Outposts lets you run some AWS services locally and connect to a broad range of services available in the local AWS Region.
+Wavelength :
+    Infrastructure offering optimized for mobile edge computing applications. 
+    Application traffic from 5G devices reach application servers running in Wavelength Zones without leaving the telecommunications network.
+CloudFront:
+    CloudFront delivers your content through a worldwide network of data centers called edge locations.
+    When a user requests content that you're serving with CloudFront, the request is routed to the edge location 
+    that provides the lowest latency (time delay), so that content is delivered with the best possible performance.
+
+
+************
+CIDR Block : ( Classless Inter Domain Routing )
+************
+
+    Network : 192.168.0.0
+       /24  : 255.255.255.0     8 host bits - 256 addresses
+       /16  : 255.255.0.0      16 host bits - 65536 addresses
+       /20  : 255.255.0.0      12 host bits - 4096 addresses
+
+AWS Rules:
+    CIDR Range - between /16 to /28
+    Must not overlap with any existing CIDR block within VPC
+    Cant increase / decrease the size of an existing CIDR block
+    first four and last one are not available for use
+    AWS recommands to use RFC1918 ranges.
+        10.0.0.0 - 10.255.255.244 ( 10 /8 prefix)
+        172.16.0.0 - 172.31.255.255 ( 172.16 / 12 prefix)
+        192.168.0.0 - 192.168.255.255 ( 192.168/16 prefix )
+
+
